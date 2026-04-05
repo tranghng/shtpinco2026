@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KCNC 2026 — Debug Kết nối</title>
+<style>
+  body { font-family: monospace; background: #0a0e1a; color: #e2e8f0; padding: 24px; max-width: 800px; margin: 0 auto; }
+  h2 { color: #3b82f6; margin-bottom: 4px; }
+  .sub { color: #64748b; font-size: 13px; margin-bottom: 24px; }
+  .card { background: #111827; border: 1px solid rgba(255,255,255,0.07); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+  .card h3 { font-size: 13px; color: #64748b; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .row { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 8px; font-size: 13px; }
+  .label { color: #64748b; min-width: 140px; flex-shrink: 0; }
+  .val { color: #e2e8f0; word-break: break-all; }
+  .ok   { color: #10b981; }
+  .warn { color: #f59e0b; }
+  .err  { color: #ef4444; }
+  .btn  { background: #3b82f6; color: white; border: none; padding: 10px 20px; border-radius: 8px;
+          font-family: monospace; font-size: 13px; cursor: pointer; margin-right: 8px; margin-bottom: 8px; }
+  .btn:hover { background: #2563eb; }
+  .btn.sec { background: #1a2235; border: 1px solid rgba(255,255,255,0.1); }
+  pre { background: #0a0e1a; border: 1px solid rgba(255,255,255,0.07); border-radius: 6px;
+        padding: 12px; font-size: 12px; overflow-x: auto; white-space: pre-wrap; margin-top: 8px; color: #94a3b8; }
+  #log { max-height: 400px; overflow-y: auto; }
+  .log-line { padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 12px; }
+  .log-line.ok  { color: #10b981; }
+  .log-line.err { color: #ef4444; }
+  .log-line.inf { color: #64748b; }
+  input { background: #0a0e1a; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px;
+          padding: 8px 12px; color: #e2e8f0; font-family: monospace; font-size: 12px; width: 100%; margin-bottom: 8px; }
+</style>
+</head>
+<body>
+<h2>🔧 KCNC 2026 — Debug Kết nối API</h2>
+<p class="sub">Trang này kiểm tra từng bước kết nối từ trình duyệt → Google Apps Script → Sheets</p>
+
+<div class="card">
+  <h3>1. Cấu hình</h3>
+  <div class="row"><span class="label">GAS_URL:</span><span class="val" id="show-url">—</span></div>
+  <div class="row"><span class="label">URL hợp lệ:</span><span class="val" id="show-valid">—</span></div>
+</div>
+
+<div class="card">
+  <h3>2. Nhập URL Apps Script (nếu chưa có trong config.js)</h3>
+  <input type="text" id="manual-url" placeholder="https://script.google.com/macros/s/.../exec">
+  <button class="btn" onclick="runAll()">▶ Chạy toàn bộ kiểm tra</button>
+  <button class="btn sec" onclick="clearLog()">Xóa log</button>
+</div>
+
+<div class="card">
+  <h3>3. Kiểm tra từng bước</h3>
+  <button class="btn sec" onclick="testPing()">Ping API</button>
+  <button class="btn sec" onclick="testGetAll('Tasks')">Đọc Tasks</button>
+  <button class="btn sec" onclick="testGetAll('Meetings')">Đọc Meetings</button>
+  <button class="btn sec" onclick="testGetAll('Docs')">Đọc Docs</button>
+  <button class="btn sec" onclick="testInit()">Init Sheets</button>
+</div>
+
+<div class="card">
+  <h3>4. Log kết quả</h3>
+  <div id="log"></div>
+</div>
+
+<script src="config.js"></script>
+<script>
+  let GAS_URL = '';
+
+  function getUrl() {
+    const manual = document.getElementById('manual-url').value.trim();
+    return manual || (typeof CONFIG !== 'undefined' ? CONFIG.GAS_URL : '');
+  }
+
+  function log(msg, type = 'inf') {
+    const now = new Date().toLocaleTimeString('vi-VN');
+    const el = document.createElement('div');
+    el.className = 'log-line ' + type;
+    el.textContent = `[${now}] ${msg}`;
+    document.getElementById('log').prepend(el);
+  }
+
+  function clearLog() { document.getElementById('log').innerHTML = ''; }
+
+  async function post(body) {
+    const url = getUrl();
+    if (!url || url.startsWith('THAY_BANG')) throw new Error('Chưa có URL — nhập vào ô phía trên');
+
+    log(`POST → ${url.slice(0, 60)}...`, 'inf');
+    log(`Body: ${JSON.stringify(body)}`, 'inf');
+
+    const res = await fetch(url, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+
+    log(`HTTP status: ${res.status} ${res.statusText}`, res.ok ? 'ok' : 'err');
+
+    const text = await res.text();
+    log(`Response: ${text.slice(0, 300)}`, 'inf');
+
+    let data;
+    try { data = JSON.parse(text); } catch(e) {
+      throw new Error('Response không phải JSON — có thể bị redirect đến trang đăng nhập Google');
+    }
+    return data;
+  }
+
+  async function testPing() {
+    log('── Ping ──', 'inf');
+    try {
+      const d = await post({ action: 'ping' });
+      log(d.ok ? `✓ Ping OK: ${d.message} (${d.time})` : `✗ Ping fail: ${d.error}`, d.ok ? 'ok' : 'err');
+    } catch(e) { log('✗ ' + e.message, 'err'); }
+  }
+
+  async function testGetAll(sheet) {
+    log(`── getAll ${sheet} ──`, 'inf');
+    try {
+      const d = await post({ action: 'getAll', sheet });
+      log(d.ok ? `✓ ${sheet}: ${d.rows.length} rows` : `✗ ${d.error}`, d.ok ? 'ok' : 'err');
+    } catch(e) { log('✗ ' + e.message, 'err'); }
+  }
+
+  async function testInit() {
+    log('── init Sheets ──', 'inf');
+    try {
+      const d = await post({ action: 'init' });
+      log(d.ok ? `✓ Init OK: ${(d.sheets||[]).join(', ')}` : `✗ ${d.error}`, d.ok ? 'ok' : 'err');
+    } catch(e) { log('✗ ' + e.message, 'err'); }
+  }
+
+  async function runAll() {
+    clearLog();
+    const url = getUrl();
+    document.getElementById('show-url').textContent = url || '(trống)';
+    const valid = url && url.includes('script.google.com') && url.endsWith('/exec');
+    document.getElementById('show-valid').textContent = valid ? '✓ Đúng định dạng' : '✗ Sai — phải có /exec ở cuối';
+    document.getElementById('show-valid').className = 'val ' + (valid ? 'ok' : 'err');
+
+    if (!valid) { log('✗ URL không hợp lệ — dừng kiểm tra', 'err'); return; }
+
+    await testPing();
+    await testGetAll('Tasks');
+    await testGetAll('Meetings');
+    await testGetAll('Docs');
+    log('── Xong ──', 'ok');
+  }
+
+  // Auto-load từ config.js
+  window.onload = () => {
+    const url = typeof CONFIG !== 'undefined' ? CONFIG.GAS_URL : '';
+    document.getElementById('show-url').textContent = url || '(chưa cấu hình)';
+    if (url && !url.startsWith('THAY_BANG')) {
+      document.getElementById('manual-url').value = url;
+    }
+    const valid = url && url.includes('script.google.com') && url.endsWith('/exec');
+    document.getElementById('show-valid').textContent = valid ? '✓ Đúng định dạng' : '✗ Sai hoặc chưa điền';
+    document.getElementById('show-valid').className = 'val ' + (valid ? 'ok' : 'err');
+  };
+</script>
+</body>
+</html>
