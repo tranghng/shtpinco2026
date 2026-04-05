@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HNQT KCNC 2026 — Bảng Điều Hành</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@300;400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="loading-overlay">
+  <div class="spinner"></div>
+  <div class="loading-text" id="loading-msg">Đang kết nối Google Sheets...</div>
+</div>
+
+<div id="sync-bar">
+  <div class="sync-dot"></div>
+  <span id="sync-text">Đang lưu...</span>
+</div>
+
+<header>
+  <div class="logo">
+    <div class="logo-badge">KCNC 2026</div>
+    <div>
+      <div class="logo-title">Hội Nghị Quốc Tế Thường Niên lần thứ 8</div>
+      <div class="logo-sub">Ngày Nghiên cứu & ĐMST Vùng Đông Nam Bộ · ĐH FPT · 15–16/10/2026</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div id="api-status" class="api-dot connecting" title="Trạng thái kết nối Sheets"></div>
+    <span class="countdown" id="countdown">—</span>
+  </div>
+</header>
+
+<div class="nav-tabs">
+  <button class="nav-tab active" onclick="switchTab('overview')">📊 Tổng quan</button>
+  <button class="nav-tab" onclick="switchTab('tasks')">✅ Nhiệm vụ <span class="tab-badge" id="badge-tasks">0</span></button>
+  <button class="nav-tab" onclick="switchTab('gantt')">📈 Gantt</button>
+  <button class="nav-tab" onclick="switchTab('meetings')">🗓 Lịch họp</button>
+  <button class="nav-tab" onclick="switchTab('docs')">📁 Tài liệu</button>
+</div>
+
+<main>
+
+<!-- OVERVIEW -->
+<div id="tab-overview" class="tab-content active">
+  <div class="stats-grid">
+    <div class="stat-card blue"><div class="stat-label">Tổng nhiệm vụ</div><div class="stat-value" id="s-total">—</div></div>
+    <div class="stat-card green"><div class="stat-label">Hoàn thành</div><div class="stat-value" id="s-done">—</div><div class="stat-sub" id="s-pct">—</div></div>
+    <div class="stat-card gold"><div class="stat-label">Đang thực hiện</div><div class="stat-value" id="s-doing">—</div></div>
+    <div class="stat-card red"><div class="stat-label">Ưu tiên cao chưa xong</div><div class="stat-value" id="s-late">—</div></div>
+    <div class="stat-card blue"><div class="stat-label">Lịch họp</div><div class="stat-value" id="s-mtg">—</div></div>
+  </div>
+  <div class="two-col">
+    <div>
+      <div class="section-header"><div class="section-title">Tiến độ theo Giai đoạn</div></div>
+      <div class="phase-grid" id="phase-overview-grid"></div>
+    </div>
+    <div>
+      <div class="section-header">
+        <div class="section-title">Nhiệm vụ cần chú ý</div>
+        <button class="btn btn-ghost btn-sm" onclick="switchTab('tasks')">Xem tất cả →</button>
+      </div>
+      <div class="task-list" id="recent-tasks"></div>
+    </div>
+  </div>
+  <div style="margin-top:24px">
+    <div class="section-header"><div class="section-title">Thông tin Hội nghị</div></div>
+    <div class="info-cards">
+      <div class="stat-card blue" style="padding:14px"><div class="stat-label">Chủ đề</div><div style="font-size:13px;font-weight:600;line-height:1.5;margin-top:4px">"Đô thị Công nghệ cao — Động lực tăng trưởng của TPHCM trong kỷ nguyên mới"</div></div>
+      <div class="stat-card green" style="padding:14px"><div class="stat-label">Quy mô</div><div class="stat-value" style="font-size:22px">500–1.000</div><div class="stat-sub">đại biểu trực tiếp + trực tuyến</div></div>
+      <div class="stat-card gold" style="padding:14px"><div class="stat-label">Hội thảo</div><div style="font-size:14px;font-weight:700;margin-top:6px">1 Toàn thể + 4 Song song</div><div class="stat-sub">tại ĐH FPT KCNC</div></div>
+      <div class="stat-card red" style="padding:14px"><div class="stat-label">Đồng tổ chức</div><div style="font-size:13px;font-weight:600;margin-top:6px">FPT · Fulbright · NTT · BECAMEX</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- TASKS -->
+<div id="tab-tasks" class="tab-content">
+  <div class="section-header">
+    <div class="section-title">Quản lý Nhiệm vụ</div>
+    <button class="btn btn-primary" onclick="toggleAddForm()">+ Thêm nhiệm vụ</button>
+  </div>
+  <div id="add-task-form" class="add-form">
+    <div class="form-grid">
+      <div class="form-group" style="grid-column:1/-1">
+        <label>Tên nhiệm vụ *</label>
+        <input type="text" id="f-name" placeholder="Mô tả ngắn nhiệm vụ...">
+      </div>
+      <div class="form-group">
+        <label>Giai đoạn</label>
+        <select id="f-phase">
+          <option value="1">Giai đoạn 1 — Chuẩn bị KH</option>
+          <option value="2">Giai đoạn 2 — Khởi động</option>
+          <option value="3">Giai đoạn 3 — Nội dung</option>
+          <option value="4">Giai đoạn 4 — Kỹ thuật</option>
+          <option value="5">Giai đoạn 5 — Hậu kỳ</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Đơn vị chủ trì</label>
+        <select id="f-owner">
+          <option>BQL KCNC</option><option>ĐH FPT</option><option>ĐH Fulbright</option>
+          <option>ĐH Nguyễn Tất Thành</option><option>BECAMEX</option>
+          <option>Ban Nội dung</option><option>Ban Truyền thông</option><option>Ban Hậu cần</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Hạn hoàn thành</label>
+        <input type="date" id="f-due">
+      </div>
+      <div class="form-group">
+        <label>Ưu tiên</label>
+        <select id="f-priority">
+          <option value="high">🔴 Cao</option>
+          <option value="med" selected>🟡 Trung bình</option>
+          <option value="low">🟢 Thấp</option>
+        </select>
+      </div>
+      <div class="form-group" style="grid-column:1/-1">
+        <label>Ghi chú</label>
+        <textarea id="f-note" rows="2" placeholder="Chi tiết thêm..."></textarea>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-ghost" onclick="toggleAddForm()">Hủy</button>
+      <button class="btn btn-primary" onclick="addTask()">💾 Lưu vào Sheets</button>
+    </div>
+  </div>
+  <div class="task-filters">
+    <button class="filter-btn active" onclick="filterTasks('all',this)">Tất cả</button>
+    <button class="filter-btn" onclick="filterTasks('todo',this)">Chưa bắt đầu</button>
+    <button class="filter-btn" onclick="filterTasks('doing',this)">Đang thực hiện</button>
+    <button class="filter-btn" onclick="filterTasks('done',this)">Hoàn thành</button>
+    <button class="filter-btn" onclick="filterTasks('high',this)">🔴 Ưu tiên cao</button>
+    <button class="filter-btn" onclick="filterTasks('p1',this)">GĐ 1</button>
+    <button class="filter-btn" onclick="filterTasks('p2',this)">GĐ 2</button>
+    <button class="filter-btn" onclick="filterTasks('p3',this)">GĐ 3</button>
+    <button class="filter-btn" onclick="filterTasks('p4',this)">GĐ 4</button>
+  </div>
+  <div class="task-list" id="task-list"></div>
+</div>
+
+<!-- GANTT -->
+<div id="tab-gantt" class="tab-content">
+  <div class="section-header"><div class="section-title">Sơ đồ Tiến độ 2026</div></div>
+  <div class="gantt-container">
+    <table id="gantt-table" style="width:100%;border-collapse:collapse;min-width:900px">
+      <thead>
+        <tr style="background:var(--surface2)">
+          <th style="padding:12px 16px;text-align:left;font-size:11px;color:var(--muted);text-transform:uppercase;width:280px;border-right:1px solid var(--border)">Giai đoạn / Hoạt động</th>
+          <th style="padding:12px 6px;text-align:center;font-size:11px;color:var(--muted)">T3</th>
+          <th style="padding:12px 6px;text-align:center;font-size:11px;color:var(--muted)">T4</th>
+          <th style="padding:12px 6px;text-align:center;font-size:11px;color:var(--muted)">T5</th>
+          <th style="padding:12px 6px;text-align:center;font-size:11px;color:var(--muted)">T6</th>
+          <th style="padding:12px 6px;text-align:center;font-size:11px;color:var(--muted)">T7</th>
+          <th style="padding:12px 6px;text-align:center;font-size:11px;color:var(--muted)">T8</th>
+          <th style="padding:12px 6px;text-align:center;font-size:11px;color:var(--muted)">T9</th>
+          <th style="padding:12px 6px;text-align:center;font-size:11px;color:var(--muted)">T10</th>
+          <th style="padding:12px 6px;text-align:center;font-size:11px;color:var(--muted)">T11</th>
+        </tr>
+      </thead>
+      <tbody id="gantt-body"></tbody>
+    </table>
+  </div>
+  <div class="gantt-legend">
+    <div class="legend-item"><div style="background:#3b82f6"></div>Chuẩn bị</div>
+    <div class="legend-item"><div style="background:#10b981"></div>Triển khai</div>
+    <div class="legend-item"><div style="background:#f59e0b"></div>Nội dung</div>
+    <div class="legend-item"><div style="background:#8b5cf6"></div>Truyền thông</div>
+    <div class="legend-item"><div style="background:#ef4444"></div>Sự kiện</div>
+  </div>
+</div>
+
+<!-- MEETINGS -->
+<div id="tab-meetings" class="tab-content">
+  <div class="section-header">
+    <div class="section-title">Lịch Họp</div>
+    <button class="btn btn-primary" onclick="openMeetingModal()">+ Thêm cuộc họp</button>
+  </div>
+  <div class="meetings-grid" id="meeting-list"></div>
+</div>
+
+<!-- DOCS -->
+<div id="tab-docs" class="tab-content">
+  <div class="section-header">
+    <div class="section-title">Kho Tài liệu & Drive</div>
+    <button class="btn btn-primary" onclick="openDocModal()">+ Thêm tài liệu</button>
+  </div>
+  <input type="text" id="doc-search" placeholder="🔍 Tìm tài liệu..."
+    style="max-width:360px;margin-bottom:16px;display:block" oninput="renderDocs()">
+  <div class="doc-grid" id="doc-grid"></div>
+</div>
+
+</main>
+
+<!-- MEETING MODAL -->
+<div class="modal-overlay" id="modal-meeting">
+  <div class="modal">
+    <div class="modal-title">Thêm Cuộc họp <button class="close-btn" onclick="closeMeetingModal()">✕</button></div>
+    <div class="form-grid">
+      <div class="form-group" style="grid-column:1/-1"><label>Tên cuộc họp *</label><input type="text" id="m-name" placeholder="VD: Họp Ban Nội dung lần 1..."></div>
+      <div class="form-group"><label>Ngày</label><input type="date" id="m-date"></div>
+      <div class="form-group"><label>Giờ</label><input type="time" id="m-time" value="09:00"></div>
+      <div class="form-group"><label>Hình thức</label>
+        <select id="m-mode">
+          <option>Trực tiếp</option>
+          <option>Trực tuyến (Google Meet)</option>
+          <option>Trực tiếp + Trực tuyến</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Địa điểm / Link</label><input type="text" id="m-loc"></div>
+      <div class="form-group" style="grid-column:1/-1"><label>Thành phần tham dự</label>
+        <div class="chip-group" id="attendee-chips">
+          <span class="chip" onclick="toggleChip(this)">BQL KCNC</span>
+          <span class="chip" onclick="toggleChip(this)">ĐH FPT</span>
+          <span class="chip" onclick="toggleChip(this)">ĐH Fulbright</span>
+          <span class="chip" onclick="toggleChip(this)">ĐH Nguyễn Tất Thành</span>
+          <span class="chip" onclick="toggleChip(this)">BECAMEX</span>
+          <span class="chip" onclick="toggleChip(this)">Ban Nội dung</span>
+          <span class="chip" onclick="toggleChip(this)">Ban Truyền thông</span>
+          <span class="chip" onclick="toggleChip(this)">Ban Hậu cần</span>
+        </div>
+      </div>
+      <div class="form-group" style="grid-column:1/-1"><label>Nội dung / Agenda</label><textarea id="m-agenda" rows="2"></textarea></div>
+      <div class="form-group" style="grid-column:1/-1"><label>Link Google Meet / Calendar</label><input type="text" id="m-link" placeholder="https://meet.google.com/..."></div>
+    </div>
+    <div class="form-actions" style="margin-top:16px">
+      <button class="btn btn-ghost" onclick="closeMeetingModal()">Hủy</button>
+      <button class="btn btn-primary" onclick="saveMeeting()">💾 Lưu vào Sheets</button>
+    </div>
+  </div>
+</div>
+
+<!-- DOC MODAL -->
+<div class="modal-overlay" id="modal-doc">
+  <div class="modal">
+    <div class="modal-title">Thêm Tài liệu <button class="close-btn" onclick="closeDocModal()">✕</button></div>
+    <div class="form-grid">
+      <div class="form-group" style="grid-column:1/-1"><label>Tên tài liệu *</label>
+        <input type="text" id="d-name" placeholder="VD: Kế hoạch tổ chức HNQT 2026..."></div>
+      <div class="form-group" style="grid-column:1/-1"><label>Link Google Drive *</label>
+        <input type="url" id="d-url" placeholder="https://drive.google.com/...">
+        <small style="color:var(--muted);font-size:11px;margin-top:3px;display:block">
+          Dán link bất kỳ — Google Doc, Sheet, Slide, PDF, folder — icon tự nhận diện
+        </small>
+      </div>
+      <div class="form-group"><label>Danh mục</label>
+        <select id="d-cat">
+          <option>Kế hoạch tổng thể</option><option>Ban Nội dung</option>
+          <option>Ban Truyền thông</option><option>Ban Hậu cần</option>
+          <option>Tài chính</option><option>Call for Papers</option>
+          <option>Đối tác</option><option>Biên bản họp</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Mô tả ngắn</label>
+        <input type="text" id="d-desc" placeholder="Nội dung tóm tắt..."></div>
+    </div>
+    <div class="form-actions" style="margin-top:16px">
+      <button class="btn btn-ghost" onclick="closeDocModal()">Hủy</button>
+      <button class="btn btn-primary" onclick="saveDoc()">💾 Lưu vào Sheets</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="config.js"></script>
+<script src="api.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
