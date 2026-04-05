@@ -3,7 +3,7 @@
 // Deploy: Web App → Execute as ME → Only myself
 // ================================================================
 
-const SPREADSHEET_ID = 'THAY_BANG_ID_SPREADSHEET_CUA_BAN'; // ← Spreadsheet ID
+const SPREADSHEET_ID = '1dW-1lAyRXolngpzFM82Seniikq7_H8lKl-VBM1gn90o'; // ← Spreadsheet ID
 
 const HEADERS = {
   Tasks:    ['id','name','phase','owner','due','priority','status','note','createdAt','updatedAt'],
