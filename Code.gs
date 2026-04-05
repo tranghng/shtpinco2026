@@ -1,6 +1,6 @@
 // ================================================================
 // KCNC 2026 — Google Apps Script Backend
-// Deploy: Web App → Execute as ME → Only myself
+// Deploy: Web App → Execute as ME → Anyone
 // ================================================================
 
 const SPREADSHEET_ID = '1dW-1lAyRXolngpzFM82Seniikq7_H8lKl-VBM1gn90o'; // ← Spreadsheet ID
@@ -11,36 +11,74 @@ const HEADERS = {
   Docs:     ['id','name','cat','driveUrl','desc','createdAt','updatedAt'],
 };
 
-// ── ROUTING ───────────────────────────────────────────────────────
-function doGet(e)  { return respond(route(e.parameter || {}, {})); }
+// ================================================================
+// ENTRY POINTS
+// ================================================================
+
+// Mọi request từ website đều đi qua doPost (tránh vấn đề CORS & param của GET)
 function doPost(e) {
-  const body = e.postData ? JSON.parse(e.postData.contents || '{}') : {};
-  return respond(route(e.parameter || {}, body));
-}
-
-function respond(result) {
-  return ContentService
-    .createTextOutput(JSON.stringify(result))
-    .setMimeType(ContentService.MimeType.JSON);
-}
-
-function route(p, b) {
   try {
-    const action = p.action || b.action;
-    const sheet  = p.sheet  || b.sheet;
-    switch (action) {
-      case 'getAll': return getAll(sheet);
-      case 'upsert': return upsert(sheet, b.row);
-      case 'delete': return deleteRow(sheet, b.id);
-      case 'init':   return initAllSheets();
-      default:       return { ok: false, error: 'Unknown action: ' + action };
-    }
-  } catch (err) {
-    return { ok: false, error: err.message };
+    const body = JSON.parse(e.postData.contents);
+    return respond(route(body));
+  } catch(err) {
+    return respond({ ok: false, error: 'Parse error: ' + err.message });
   }
 }
 
-// ── OPERATIONS ────────────────────────────────────────────────────
+// doGet chỉ dùng để test trên trình duyệt — đọc từ URL param
+function doGet(e) {
+  try {
+    const p = e.parameter || {};
+    // Nếu không có action → trả về status page
+    if (!p.action) {
+      return respond({ ok: true, status: 'KCNC 2026 API running', usage: 'POST with JSON body' });
+    }
+    return respond(route(p));
+  } catch(err) {
+    return respond({ ok: false, error: err.message });
+  }
+}
+
+function respond(result) {
+  const output = ContentService.createTextOutput(JSON.stringify(result));
+  output.setMimeType(ContentService.MimeType.JSON);
+  return output;
+}
+
+function route(b) {
+  const action = b.action;
+  const sheet  = b.sheet;
+  switch (action) {
+    case 'getAll': return getAll(sheet);
+    case 'upsert': return upsert(sheet, b.row);
+    case 'delete': return deleteRow(sheet, b.id);
+    case 'init':   return initAllSheets();
+    case 'ping':   return { ok: true, message: 'pong', time: new Date().toISOString() };
+    default:       return { ok: false, error: 'Unknown action: ' + action };
+  }
+}
+
+// ================================================================
+// TEST FUNCTIONS — chạy từ editor (chọn tên hàm → nhấn Run)
+// ================================================================
+function testInit()        { Logger.log(JSON.stringify(initAllSheets())); }
+function testGetTasks()    { Logger.log(JSON.stringify(getAll('Tasks'))); }
+function testGetMeetings() { Logger.log(JSON.stringify(getAll('Meetings'))); }
+function testGetDocs()     { Logger.log(JSON.stringify(getAll('Docs'))); }
+function testUpsert() {
+  Logger.log(JSON.stringify(upsert('Tasks', {
+    id: 'TEST001', name: 'Task mẫu', phase: '1', owner: 'BQL KCNC',
+    due: '2026-04-30', priority: 'high', status: 'todo', note: 'Test OK',
+  })));
+}
+function testPing() {
+  // Giả lập POST call
+  Logger.log(JSON.stringify(route({ action: 'ping' })));
+}
+
+// ================================================================
+// OPERATIONS
+// ================================================================
 function getAll(sheetName) {
   const sh = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(sheetName);
   if (!sh) return { ok: false, error: 'Sheet not found: ' + sheetName };
@@ -61,8 +99,8 @@ function getAll(sheetName) {
 }
 
 function upsert(sheetName, rowData) {
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  const sh = ss.getSheetByName(sheetName);
+  const ss      = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const sh      = ss.getSheetByName(sheetName);
   if (!sh) return { ok: false, error: 'Sheet not found: ' + sheetName };
 
   const headers = HEADERS[sheetName];
@@ -104,7 +142,6 @@ function deleteRow(sheetName, id) {
   return { ok: false, error: 'Row not found: ' + id };
 }
 
-// ── INIT (chạy 1 lần) ─────────────────────────────────────────────
 function initAllSheets() {
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   const results = [];
@@ -118,9 +155,9 @@ function initAllSheets() {
       sh.getRange(1, 1, 1, headers.length)
         .setBackground('#1a73e8').setFontColor('#ffffff').setFontWeight('bold');
       sh.setFrozenRows(1);
-      sh.setColumnWidth(2, 260); // cột name
+      sh.setColumnWidth(2, 260);
     }
-    results.push(name + ' ✓');
+    results.push(name + ' OK');
   });
 
   return { ok: true, sheets: results };
